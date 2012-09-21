@@ -125,7 +125,9 @@ module Capistrano
           desc("Build python within pyenv.")
           task(:build, :except => { :no_release => true }) {
             python = fetch(:pyenv_python_cmd, 'python')
-            run("#{pyenv_cmd} whence #{python} | grep -q #{pyenv_python_version} || #{pyenv_cmd} install #{pyenv_python_version}")
+            if pyenv_python_version != 'system'
+              run("#{pyenv_cmd} whence #{python} | grep -q #{pyenv_python_version} || #{pyenv_cmd} install #{pyenv_python_version}")
+            end
             run("#{pyenv_cmd} exec #{python} --version")
           }
         }
