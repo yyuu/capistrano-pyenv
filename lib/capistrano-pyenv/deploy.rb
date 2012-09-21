@@ -10,8 +10,7 @@ module Capistrano
             File.join(pyenv_path, 'bin', 'pyenv')
           }
           _cset(:pyenv_cmd) { # to use custom pyenv_path, we use `env` instead of cap's default_environment.
-            path = "#{pyenv_path}/bin:#{pyenv_path}/shims:$PATH"
-            "env PATH=#{path.dump()} #{pyenv_bin}"
+            "env PYENV_VERSION=#{pyenv_python_version.dump} #{pyenv_bin}"
           }
           _cset(:pyenv_repository, 'git://github.com/yyuu/pyenv.git')
           _cset(:pyenv_branch, 'master')
@@ -95,7 +94,7 @@ module Capistrano
           task(:build, :except => { :no_release => true }) {
             python = fetch(:pyenv_python_cmd, 'python')
             run("#{pyenv_cmd} whence #{python} | grep -q #{pyenv_python_version} || #{pyenv_cmd} install #{pyenv_python_version}")
-            run("#{pyenv_cmd} global #{pyenv_python_version} && #{pyenv_cmd} exec #{python} --version")
+            run("#{pyenv_cmd} exec #{python} --version")
           }
         }
       }
