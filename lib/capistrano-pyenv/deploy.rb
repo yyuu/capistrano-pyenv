@@ -34,7 +34,6 @@ module Capistrano
           }
 
           _cset(:pyenv_python_version, '2.7.3')
-          _cset(:pyenv_python_dependencies, %w(build-essential libreadline6-dev zlib1g-dev libssl-dev))
 
           desc("Setup pyenv.")
           task(:setup, :except => { :no_release => true }) {
@@ -84,9 +83,42 @@ module Capistrano
             # nop
           }
 
+          _cset(:pyenv_platform) {
+            capture((<<-EOS).gsub(/\s+/, ' ')).strip
+              if test -f /etc/debian_version; then
+                if test -f /etc/lsb-release && grep -i -q DISTRIB_ID=Ubuntu /etc/lsb-release; then
+                  echo ubuntu;
+                else
+                  echo debian;
+                fi;
+              elif test -f /etc/redhat-release; then
+                echo redhat;
+              else
+                echo unknown;
+              fi;
+            EOS
+          }
+          _cset(:pyenv_python_dependencies) {
+            case pyenv_platform
+            when /(debian|ubuntu)/i
+              %w(build-essential libreadline6-dev zlib1g-dev libssl-dev)
+            when /redhat/i
+              %w(autoconf glibc-devel patch readline readline-devel zlib zlib-devel openssl)
+            else
+              []
+            end
+          }
           task(:dependencies, :except => { :no_release => true }) {
-            unless pyenv_python_dependencies.empty? # dpkg-query is faster than apt-get on querying if packages are installed
-              run("dpkg-query --show #{pyenv_python_dependencies.join(' ')} 2>/dev/null || #{sudo} apt-get -y install #{pyenv_python_dependencies.join(' ')}")
+            unless pyenv_python_dependencies.empty?
+              case pyenv_platform
+              when /(debian|ubuntu)/i
+                # dpkg-query is faster than apt-get on querying if packages are installed
+                run("dpkg-query --show #{pyenv_python_dependencies.join(' ')} 2>/dev/null || #{sudo} apt-get -y install #{pyenv_python_dependencies.join(' ')}")
+              when /redhat/i
+                run("#{sudo} yum install -y #{pyenv_python_dependencies.join(' ')}")
+              else
+                # nop
+              end
             end
           }
 
