@@ -101,9 +101,9 @@ module Capistrano
           _cset(:pyenv_python_dependencies) {
             case pyenv_platform
             when /(debian|ubuntu)/i
-              %w(build-essential libreadline6-dev zlib1g-dev libssl-dev)
+              %w(git-core build-essential libreadline6-dev zlib1g-dev libssl-dev)
             when /redhat/i
-              %w(autoconf glibc-devel patch readline readline-devel zlib zlib-devel openssl)
+              %w(git-core autoconf glibc-devel patch readline readline-devel zlib zlib-devel openssl)
             else
               []
             end
@@ -112,10 +112,9 @@ module Capistrano
             unless pyenv_python_dependencies.empty?
               case pyenv_platform
               when /(debian|ubuntu)/i
-                # dpkg-query is faster than apt-get on querying if packages are installed
-                run("dpkg-query --show #{pyenv_python_dependencies.join(' ')} 2>/dev/null || #{sudo} apt-get -y install #{pyenv_python_dependencies.join(' ')}")
+                run("#{sudo} apt-get install -q -y #{pyenv_python_dependencies.join(' ')}")
               when /redhat/i
-                run("#{sudo} yum install -y #{pyenv_python_dependencies.join(' ')}")
+                run("#{sudo} yum install -q -y #{pyenv_python_dependencies.join(' ')}")
               else
                 # nop
               end
