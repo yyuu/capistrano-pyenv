@@ -176,7 +176,7 @@ module Capistrano
             if pyenv_python_version != 'system'
               run("#{pyenv_cmd} whence #{python} | grep -q #{pyenv_python_version} || #{pyenv_cmd} install #{pyenv_python_version}")
             end
-            run("#{pyenv_cmd} exec #{python} --version")
+            run("#{pyenv_cmd} exec #{python} --version && #{pyenv_cmd} global #{pyenv_python_version}")
           }
         }
       }
