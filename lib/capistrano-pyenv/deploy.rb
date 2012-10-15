@@ -79,8 +79,57 @@ module Capistrano
             }
           }
 
+          _cset(:pyenv_configure_home) { capture("echo $HOME").chomp }
+          _cset(:pyenv_configure_shell) { capture("echo $SHELL").chomp }
+          _cset(:pyenv_configure_files) {
+            if fetch(:pyenv_configure_basenames, nil)
+              [ pyenv_configure_basenames ].flatten.map { |basename|
+                File.join(pyenv_configure_home, basename)
+              }
+            else
+              case File.basename(pyenv_configure_shell)
+              when /bash/
+                [ File.join(pyenv_configure_home, '.bash_profile') ]
+              when /zsh/
+                [ File.join(pyenv_configure_home, '.zshenv') ]
+              else # other sh compatible shell such like dash
+                [ File.join(pyenv_configure_home, '.profile') ]
+              end
+            end
+          }
+          _cset(:pyenv_configure_script) {
+            (<<-EOS).gsub(/^\s*/, '')
+              # Configured by capistrano-pyenv. Do not edit directly.
+              export PATH="#{pyenv_path}/bin:$PATH"
+              eval "$(pyenv init -)"
+            EOS
+          }
+          _cset(:pyenv_configure_signature, '##pyenv:configure')
           task(:configure, :except => { :no_release => true }) {
-            # nop
+            if fetch(:pyenv_use_configure, true)
+              script = File.join('/tmp', "pyenv.#{$$}")
+              config = [ pyenv_configure_files ].flatten
+              config_map = Hash[ config.map { |f| [f, File.join('/tmp', "#{File.basename(f)}.#{$$}")] } ]
+              begin
+                execute = []
+                put(pyenv_configure_script, script)
+                config_map.each { |file, temp|
+                  ## (1) copy original config to temporaly file and then modify
+                  execute << "( cp -fp #{file} #{temp} || touch #{temp} )" 
+                  execute << "sed -i -e '/^#{Regexp.escape(pyenv_configure_signature)}/,/^#{Regexp.escape(pyenv_configure_signature)}/d' #{temp}"
+                  execute << "echo #{pyenv_configure_signature.dump} >> #{temp}"
+                  execute << "cat #{script} >> #{temp}"
+                  execute << "echo #{pyenv_configure_signature.dump} >> #{temp}"
+                  ## (2) update config only if it is needed
+                  execute << "cp -fp #{file} #{file}.orig"
+                  execute << "( diff -u #{file} #{temp} || mv -f #{temp} #{file} )"
+                }
+                run(execute.join(' && '))
+              ensure
+                remove = [ script ] + config_map.values
+                run("rm -f #{remove.join(' ')}") rescue nil
+              end
+            end
           }
 
           _cset(:pyenv_platform) {
