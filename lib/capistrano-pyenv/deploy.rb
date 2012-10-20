@@ -15,8 +15,12 @@ module Capistrano
           _cset(:pyenv_repository, 'git://github.com/yyuu/pyenv.git')
           _cset(:pyenv_branch, 'master')
 
-          _cset(:pyenv_plugins, {})
-          _cset(:pyenv_plugins_options, {})
+          _cset(:pyenv_plugins, {
+            'python-virtualenv' => 'git://github.com/yyuu/python-virtualenv.git',
+          })
+          _cset(:pyenv_plugins_options, {
+            'python-virtualenv' => {:branch => 'master'},
+          })
           _cset(:pyenv_plugins_path) {
             File.join(pyenv_path, 'plugins')
           }
