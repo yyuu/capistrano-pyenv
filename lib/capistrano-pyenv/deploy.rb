@@ -91,13 +91,15 @@ module Capistrano
                 File.join(pyenv_configure_home, basename)
               }
             else
+              bash_profile File.join(pyenv_configure_home, '.bash_profile')
+              profile = File.join(pyenv_configure_home, '.profile')
               case File.basename(pyenv_configure_shell)
               when /bash/
-                [ File.join(pyenv_configure_home, '.bash_profile') ]
+                [ capture("test -f #{profile.dump} && echo #{profile.dump} || echo #{bash_profile.dump}") ]
               when /zsh/
                 [ File.join(pyenv_configure_home, '.zshenv') ]
               else # other sh compatible shell such like dash
-                [ File.join(pyenv_configure_home, '.profile') ]
+                [ profile ]
               end
             end
           }
@@ -119,7 +121,8 @@ module Capistrano
                 put(pyenv_configure_script, script)
                 config_map.each { |file, temp|
                   ## (1) copy original config to temporaly file and then modify
-                  execute << "( cp -fp #{file} #{temp} || touch #{temp} )" 
+                  execute << "( test -f #{file} || touch #{file} )"
+                  execute << "cp -fp #{file} #{temp}" 
                   execute << "sed -i -e '/^#{Regexp.escape(pyenv_configure_signature)}/,/^#{Regexp.escape(pyenv_configure_signature)}/d' #{temp}"
                   execute << "echo #{pyenv_configure_signature.dump} >> #{temp}"
                   execute << "cat #{script} >> #{temp}"
