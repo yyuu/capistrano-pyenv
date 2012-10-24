@@ -38,6 +38,9 @@ module Capistrano
           }
 
           _cset(:pyenv_python_version, '2.7.3')
+          _cset(:pyenv_use_virtualenv, false)
+          _cset(:pyenv_virtualenv_python_version, '2.7.3')
+          _cset(:pyenv_virtualenv_options, %w(--distribute --quiet --system-site-packages))
 
           desc("Setup pyenv.")
           task(:setup, :except => { :no_release => true }) {
@@ -180,9 +183,23 @@ module Capistrano
           desc("Build python within pyenv.")
           task(:build, :except => { :no_release => true }) {
             python = fetch(:pyenv_python_cmd, 'python')
-            if pyenv_python_version != 'system'
-              run("#{pyenv_cmd} whence #{python} | grep -q #{pyenv_python_version} || #{pyenv_cmd} install #{pyenv_python_version}")
+            if pyenv_use_virtualenv
+              if pyenv_virtualenv_python_version != 'system'
+                # build python for virtualenv
+                run("#{pyenv_bin} whence #{python} | fgrep -q #{pyenv_virtualenv_python_version} || " +
+                    "#{pyenv_bin} install #{pyenv_virtualenv_python_version}")
+              end
+              if pyenv_python_version != 'system'
+                # create virtualenv
+                run("#{pyenv_bin} whence #{python} | fgrep -q #{pyenv_python_version} || " +
+                    "#{pyenv_bin} virtualenv #{pyenv_virtualenv_options.join(' ')} #{pyenv_virtualenv_python_version} #{pyenv_python_version}")
+              end
+            else
+              if pyenv_python_version != 'system'
+                run("#{pyenv_bin} whence #{python} | fgrep -q #{pyenv_python_version} || #{pyenv_bin} install #{pyenv_python_version}")
+              end
             end
+
             run("#{pyenv_cmd} exec #{python} --version && #{pyenv_cmd} global #{pyenv_python_version}")
           }
         }
