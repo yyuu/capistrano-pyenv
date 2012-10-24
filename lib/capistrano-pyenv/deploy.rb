@@ -91,7 +91,7 @@ module Capistrano
                 File.join(pyenv_configure_home, basename)
               }
             else
-              bash_profile File.join(pyenv_configure_home, '.bash_profile')
+              bash_profile = File.join(pyenv_configure_home, '.bash_profile')
               profile = File.join(pyenv_configure_home, '.profile')
               case File.basename(pyenv_configure_shell)
               when /bash/
