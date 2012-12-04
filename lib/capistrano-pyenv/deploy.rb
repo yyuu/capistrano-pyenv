@@ -1,3 +1,7 @@
+
+require "capistrano/configuration"
+require "capistrano/recipes/deploy/scm"
+
 module Capistrano
   module PyEnv
     def self.extended(configuration)
@@ -24,20 +28,8 @@ module Capistrano
           _cset(:pyenv_plugins_path) {
             File.join(pyenv_path, 'plugins')
           }
+          _cset(:pyenv_python_version, "2.7.3")
 
-          _cset(:pyenv_git) {
-            if scm == :git
-              if fetch(:scm_command, :default) == :default
-                fetch(:git, 'git')
-              else
-                scm_command
-              end
-            else
-              fetch(:git, 'git')
-            end
-          }
-
-          _cset(:pyenv_python_version, '2.7.3')
           _cset(:pyenv_use_virtualenv, false)
           _cset(:pyenv_virtualenv_python_version, '2.7.3')
           _cset(:pyenv_virtualenv_options, %w(--distribute --quiet --system-site-packages))
@@ -51,22 +43,40 @@ module Capistrano
           }
           after 'deploy:setup', 'pyenv:setup'
 
-          def _pyenv_sync(repository, destination, revision)
-            git = pyenv_git
-            remote = 'origin'
-            verbose = "-q"
-            run((<<-E).gsub(/\s+/, ' '))
-              if test -d #{destination}; then
-                cd #{destination} && #{git} fetch #{verbose} #{remote} && #{git} fetch --tags #{verbose} #{remote} && #{git} merge #{verbose} #{remote}/#{revision};
+          def pyenv_update_repository(destination, options={})
+            configuration = Capistrano::Configuration.new()
+            variables.merge(options).each do |key, val|
+              configuration.set(key, val)
+            end
+            configuration.set(:source) { Capistrano::Deploy::SCM.new(configuration[:scm], configuration) }
+            configuration.set(:revision) { configuration[:source].head }
+            configuration.set(:real_revision) {
+              configuration[:source].local.query_revision(configuration[:revision]) { |cmd|
+                with_env("LC_ALL", "C") { run_locally(cmd) }
+              }
+            }
+            source = configuration[:source]
+            revision = configuration[:real_revision]
+            #
+            # we cannot use source.sync since it cleans up untacked files in the repository.
+            # currently we are just calling git sub-commands directly to avoid the problems.
+            #
+            verbose = configuration[:scm_verbose] ? nil : "-q"
+            run((<<-EOS).gsub(/\s+/, ' ').strip)
+              if [ -d #{destination} ]; then
+                cd #{destination} &&
+                #{source.command} fetch #{verbose} #{source.origin} &&
+                #{source.command} fetch --tags #{verbose} #{source.origin} &&
+                #{source.command} reset #{verbose} --hard #{revision};
               else
-                #{git} clone #{verbose} #{repository} #{destination} && cd #{destination} && #{git} checkout #{verbose} #{revision};
-              fi;
-            E
+                #{source.checkout(revision, destination)};
+              fi
+            EOS
           end
 
           desc("Update pyenv installation.")
           task(:update, :except => { :no_release => true }) {
-            _pyenv_sync(pyenv_repository, pyenv_path, pyenv_branch)
+            pyenv_update_repository(pyenv_path, :scm => :git, :repository => pyenv_repository, :branch => pyenv_branch)
             plugins.update
           }
 
@@ -81,7 +91,7 @@ module Capistrano
               pyenv_plugins.each { |name, repository|
                 options = ( pyenv_plugins_options[name] || {})
                 branch = ( options[:branch] || 'master' )
-                _pyenv_sync(repository, File.join(pyenv_plugins_path, name), branch)
+                pyenv_update_repository(File.join(pyenv_plugins_path, name), :scm => :git, :repository => repository, :branch => branch)
               }
             }
           }
