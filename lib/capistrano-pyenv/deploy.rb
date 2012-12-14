@@ -19,12 +19,10 @@ module Capistrano
           _cset(:pyenv_repository, 'git://github.com/yyuu/pyenv.git')
           _cset(:pyenv_branch, 'master')
 
-          _cset(:pyenv_plugins, {
-            'python-virtualenv' => 'git://github.com/yyuu/python-virtualenv.git',
-          })
-          _cset(:pyenv_plugins_options, {
-            'python-virtualenv' => {:branch => 'master'},
-          })
+          _cset(:pyenv_plugins) {{
+            "python-virtualenv" => { "git://github.com/yyuu/python-virtualenv.git", :branch => "master" },
+          }}
+          _cset(:pyenv_plugins_options, {}) # for backward compatibility. plugin options can be configured from :pyenv_plugins.
           _cset(:pyenv_plugins_path) {
             File.join(pyenv_path, 'plugins')
           }
@@ -88,11 +86,12 @@ module Capistrano
           namespace(:plugins) {
             desc("Update pyenv plugins.")
             task(:update, :except => { :no_release => true }) {
-              pyenv_plugins.each { |name, repository|
-                options = ( pyenv_plugins_options[name] || {})
-                branch = ( options[:branch] || 'master' )
-                pyenv_update_repository(File.join(pyenv_plugins_path, name), :scm => :git, :repository => repository, :branch => branch)
-              }
+              pyenv_plugins.each do |name, repository|
+                # for backward compatibility, obtain plugin options from :pyenv_plugins_options first
+                options = pyenv_plugins_options.fetch(name, {})
+                options = options.merge(Hash === repository ? repository : {:repository => repository})
+                pyenv_update_repository(File.join(pyenv_plugins_path, name), options.merge(:scm => :git))
+              end
             }
           }
 

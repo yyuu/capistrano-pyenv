@@ -30,7 +30,6 @@ Following options are available to manage your pyenv.
  * `:pyenv_branch` - the git branch to install `pyenv` from. use `master` by default.
  * `:pyenv_cmd` - the `pyenv` command.
  * `:pyenv_path` - the path where `pyenv` will be installed. use `$HOME/.pyenv` by default.
- * `:pyenv_plugins_options` - install options for pyenv plugins.
  * `:pyenv_plugins` - pyenv plugins to install. do nothing by default.
  * `:pyenv_repository` - repository URL of pyenv.
  * `:pyenv_python_dependencies` - depedency packages.
