@@ -20,7 +20,7 @@ module Capistrano
           _cset(:pyenv_branch, 'master')
 
           _cset(:pyenv_plugins) {{
-            "python-virtualenv" => { "git://github.com/yyuu/python-virtualenv.git", :branch => "master" },
+            "python-virtualenv" => { :repository => "git://github.com/yyuu/python-virtualenv.git", :branch => "master" },
           }}
           _cset(:pyenv_plugins_options, {}) # for backward compatibility. plugin options can be configured from :pyenv_plugins.
           _cset(:pyenv_plugins_path) {
