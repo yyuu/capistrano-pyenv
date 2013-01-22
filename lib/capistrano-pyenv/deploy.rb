@@ -180,9 +180,17 @@ module Capistrano
             unless pyenv_python_dependencies.empty?
               case pyenv_platform
               when /(debian|ubuntu)/i
-                run("#{sudo} apt-get install -q -y #{pyenv_python_dependencies.join(' ')}")
+                begin
+                  run("dpkg-query -s #{pyenv_python_dependencies.join(' ')} > /dev/null")
+                rescue
+                  run("#{sudo} apt-get install -q -y #{pyenv_python_dependencies.join(' ')}")
+                end
               when /redhat/i
-                run("#{sudo} yum install -q -y #{pyenv_python_dependencies.join(' ')}")
+                begin
+                  run("rpm -qi #{pyenv_python_dependencies.join(' ')} > /dev/null")
+                rescue
+                  run("#{sudo} yum install -q -y #{pyenv_python_dependencies.join(' ')}")
+                end
               else
                 # nop
               end
