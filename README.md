@@ -37,6 +37,7 @@ Following options are available to manage your pyenv.
  * `:pyenv_use_virtualenv` - create new virtualenv from `:pyenv_virtualenv_python_version`. `false` by default. `:pyenv_python_version` will be treated as the name of the virtualenv if this is turned `true`.
  * `:pyenv_virtualenv_python_version` - the python version to create virtualenv. `2.7.3` by default.
  * `:pyenv_virtualenv_options` - command-line options for virtualenv.
+ * `:pyenv_install_dependencies` - controls whether installing dependencies or not. `true` by default.
 
 ## Contributing
 

@@ -32,9 +32,11 @@ module Capistrano
           _cset(:pyenv_virtualenv_python_version, '2.7.3')
           _cset(:pyenv_virtualenv_options, %w(--distribute --quiet --system-site-packages))
 
+          _cset(:pyenv_install_dependencies, true)
+
           desc("Setup pyenv.")
           task(:setup, :except => { :no_release => true }) {
-            dependencies
+            dependencies if pyenv_install_dependencies
             update
             configure
             build
