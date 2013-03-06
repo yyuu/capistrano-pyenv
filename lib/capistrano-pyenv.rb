@@ -7,13 +7,17 @@ module Capistrano
     def self.extended(configuration)
       configuration.load {
         namespace(:pyenv) {
+          _cset(:pyenv_root, "$HOME/.pyenv")
           _cset(:pyenv_path) {
-            capture("echo $HOME/.pyenv").chomp()
+            # expand to actual path to use this value since pyenv may be executed by users other than `:user`.
+            capture("echo #{pyenv_root.dump}").strip
           }
+          _cset(:pyenv_bin_path) { File.join(pyenv_path, "bin") }
+          _cset(:pyenv_shims_path) { File.join(pyenv_path, "shims") }
           _cset(:pyenv_bin) {
-            File.join(pyenv_path, 'bin', 'pyenv')
+            File.join(pyenv_bin_path, "pyenv")
           }
-          _cset(:pyenv_cmd) { # to use custom pyenv_path, we use `env` instead of cap's default_environment.
+          _cset(:pyenv_cmd) {
             "env PYENV_VERSION=#{pyenv_python_version.dump} #{pyenv_bin}"
           }
           _cset(:pyenv_repository, 'git://github.com/yyuu/pyenv.git')
@@ -80,9 +84,30 @@ module Capistrano
             plugins.update
           }
 
+          def setup_default_environment
+            env = fetch(:default_environment, {}).dup
+            env["PYENV_ROOT"] = pyenv_path
+            env["PATH"] = [ pyenv_shims_path, pyenv_bin_path, env.fetch("PATH", "$PATH") ].join(":")
+            set(:default_environment, env)
+          end
+
+          on :start do
+            if fetch(:pyenv_define_default_environment, true)
+              # workaround for `multistage` of capistrano-ext.
+              # https://github.com/yyuu/capistrano-rbenv/pull/5
+              if top.namespaces.key?(:multistage)
+                after "multistage:ensure" do
+                  setup_default_environment
+                end
+              else
+                setup_default_environment
+              end
+            end
+          end
+
           desc("Purge pyenv.")
           task(:purge, :except => { :no_release => true }) {
-            run("rm -rf #{pyenv_path}")
+            run("rm -rf #{pyenv_path.dump}")
           }
 
           namespace(:plugins) {
@@ -120,7 +145,7 @@ module Capistrano
           _cset(:pyenv_configure_script) {
             (<<-EOS).gsub(/^\s*/, '')
               # Configured by capistrano-pyenv. Do not edit directly.
-              export PATH="#{pyenv_path}/bin:$PATH"
+              export PATH=#{[ pyenv_bin_path, "$PATH"].join(":").dump}
               eval "$(pyenv init -)"
             EOS
           }

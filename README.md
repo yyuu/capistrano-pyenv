@@ -38,6 +38,7 @@ Following options are available to manage your pyenv.
  * `:pyenv_virtualenv_python_version` - the python version to create virtualenv. `2.7.3` by default.
  * `:pyenv_virtualenv_options` - command-line options for virtualenv.
  * `:pyenv_install_dependencies` - controls whether installing dependencies or not. `true` by default.
+ * `:pyenv_define_default_environment` - define `PYENV_ROOT` and update `PATH` to use pyenv over capistrano. `true` by default.
 
 ## Contributing
 
