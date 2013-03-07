@@ -310,7 +310,7 @@ module Capistrano
           end
 
           def versions(options={})
-            capture("#{pyenv_cmd} versions --bare").split(/(?:\r?\n)+/)
+            capture("#{pyenv_cmd} versions --bare", options).split(/(?:\r?\n)+/)
           end
 
           _cset(:pyenv_install_python_threads) {
@@ -326,11 +326,11 @@ module Capistrano
           end
 
           def uninstall(version, options={})
-            run("#{pyenv_cmd} uninstall -f #{version.dump}")
+            run("#{pyenv_cmd} uninstall -f #{version.dump}", options)
           end
 
           def virtualenv(version, venv, options={})
-            run("#{pyenv_cmd} virtualenv #{pyenv_virtualenv_options.join(" ")} #{version.dump} #{venv.dump}")
+            run("#{pyenv_cmd} virtualenv #{pyenv_virtualenv_options.join(" ")} #{version.dump} #{venv.dump}", options)
           end
         }
       }
