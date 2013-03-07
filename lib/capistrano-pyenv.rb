@@ -259,6 +259,11 @@ module Capistrano
 
             run("#{pyenv_cmd} exec #{python} --version && #{pyenv_cmd} global #{pyenv_python_version}")
           }
+
+          # call `pyenv rehash` to update shims.
+          def rehash()
+            run("#{pyenv_cmd} rehash")
+          end
         }
       }
     end
