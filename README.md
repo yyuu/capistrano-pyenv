@@ -35,10 +35,13 @@ Following options are available to manage your pyenv.
  * `:pyenv_python_dependencies` - depedency packages.
  * `:pyenv_python_version` - the python version to install. install `2.7.3` by default.
  * `:pyenv_use_virtualenv` - create new virtualenv from `:pyenv_virtualenv_python_version`. `false` by default. `:pyenv_python_version` will be treated as the name of the virtualenv if this is turned `true`.
+ * `:pyenv_install_dependencies` - controls whether installing dependencies or not. `true` if the required packages are missing.
+ * `:pyenv_setup_shell` - setup pyenv in your shell config or not. `true` by default. users who are using Chef/Puppet may prefer setting this value `false`.
+ * `:pyenv_setup_default_environment` - setup `PYENV_ROOT` and update `PATH` to use pyenv over capistrano. `true` by default.
+ * `:pyenv_configure_files` - list of shell configuration files to be configured for pyenv. by default, guessing from user's `$SHELL` and `$HOME`.
+ * `:pyenv_configure_basenames` - advanced option for `:pyenv_configure_files`. list of filename of your shell configuration files if you don't like the default value of `:pyenv_configure_files`.
  * `:pyenv_virtualenv_python_version` - the python version to create virtualenv. `2.7.3` by default.
  * `:pyenv_virtualenv_options` - command-line options for virtualenv.
- * `:pyenv_install_dependencies` - controls whether installing dependencies or not. `true` by default.
- * `:pyenv_define_default_environment` - define `PYENV_ROOT` and update `PATH` to use pyenv over capistrano. `true` by default.
 
 ## Contributing
 

@@ -33,21 +33,33 @@ module Capistrano
           _cset(:pyenv_python_version, "2.7.3")
 
           _cset(:pyenv_use_virtualenv, false)
-          _cset(:pyenv_virtualenv_python_version, '2.7.3')
+          _cset(:pyenv_virtualenv_python_version, "2.7.3")
           _cset(:pyenv_virtualenv_options, %w(--distribute --quiet --system-site-packages))
 
-          _cset(:pyenv_install_dependencies, true)
+          _cset(:pyenv_install_dependencies) {
+            if pyenv_python_dependencies.empty?
+              false
+            else
+              status = case pyenv_platform
+                when /(debian|ubuntu)/i
+                  capture("dpkg-query -s #{pyenv_python_dependencies.map { |x| x.dump }.join(" ")} 1>/dev/null 2>&1 || echo required")
+                when /redhat/i
+                  capture("rpm -qi #{pyenv_python_dependencies.map { |x| x.dump }.join(" ")} 1>/dev/null 2>&1 || echo required")
+                end
+              true and (/required/i =~ status)
+            end
+          }
 
           desc("Setup pyenv.")
           task(:setup, :except => { :no_release => true }) {
             dependencies if pyenv_install_dependencies
             update
-            configure
+            configure if pyenv_setup_shell
             build
           }
           after 'deploy:setup', 'pyenv:setup'
 
-          def pyenv_update_repository(destination, options={})
+          def _update_repository(destination, options={})
             configuration = Capistrano::Configuration.new()
             options = {
               :source => proc { Capistrano::Deploy::SCM.new(configuration[:scm], configuration) },
@@ -80,27 +92,34 @@ module Capistrano
 
           desc("Update pyenv installation.")
           task(:update, :except => { :no_release => true }) {
-            pyenv_update_repository(pyenv_path, :scm => :git, :repository => pyenv_repository, :branch => pyenv_branch)
+            _update_repository(pyenv_path, :scm => :git, :repository => pyenv_repository, :branch => pyenv_branch)
             plugins.update
           }
 
-          def setup_default_environment
+          def _setup_default_environment
             env = fetch(:default_environment, {}).dup
             env["PYENV_ROOT"] = pyenv_path
             env["PATH"] = [ pyenv_shims_path, pyenv_bin_path, env.fetch("PATH", "$PATH") ].join(":")
             set(:default_environment, env)
           end
 
-          _cset(:pyenv_define_default_environment, true)
+          _cset(:pyenv_setup_default_environment) {
+            if variables.key?(:pyenv_define_default_environment)
+              logger.info(":pyenv_define_default_environment has been deprecated. use :pyenv_setup_default_environment instead.")
+              fetch(:pyenv_define_default_environment, true)
+            else
+              true
+            end
+          }
           # workaround for `multistage` of capistrano-ext.
           # https://github.com/yyuu/capistrano-rbenv/pull/5
           if top.namespaces.key?(:multistage)
             after "multistage:ensure" do
-              setup_default_environment if pyenv_define_default_environment
+              _setup_default_environment if pyenv_setup_default_environment
             end
           else
             on :start do
-              setup_default_environment if pyenv_define_default_environment
+              _setup_default_environment if pyenv_setup_default_environment
             end
           end
 
@@ -116,7 +135,7 @@ module Capistrano
                 # for backward compatibility, obtain plugin options from :pyenv_plugins_options first
                 options = pyenv_plugins_options.fetch(name, {})
                 options = options.merge(Hash === repository ? repository : {:repository => repository})
-                pyenv_update_repository(File.join(pyenv_plugins_path, name), options.merge(:scm => :git))
+                _update_repository(File.join(pyenv_plugins_path, name), options.merge(:scm => :git))
               end
             }
           }
@@ -149,7 +168,7 @@ module Capistrano
             EOS
           }
 
-          def _update_config(script_file, file, tempfile)
+          def _do_update_config(script_file, file, tempfile)
             execute = []
             ## (1) ensure copy source file exists
             execute << "( test -f #{file.dump} || touch #{file.dump} )"
@@ -167,27 +186,33 @@ module Capistrano
             run(execute.join(" && "))
           end
 
-          def update_config(script_file, file)
+          def _update_config(script_file, file)
             begin
               tempfile = capture("mktemp /tmp/pyenv.XXXXXXXXXX").strip
-              _update_config(script_file, file, tempfile)
+              _do_update_config(script_file, file, tempfile)
             ensure
               run("rm -f #{tempfile.dump}") rescue nil
             end
           end
 
+          _cset(:pyenv_setup_shell) {
+            if variables.key?(:pyenv_use_configure)
+              logger.info(":pyenv_use_configure has been deprecated. please use :pyenv_setup_shell instead.")
+              fetch(:pyenv_use_configure, true)
+            else
+              true
+            end
+          }
           _cset(:pyenv_configure_signature, '##pyenv:configure')
           task(:configure, :except => { :no_release => true }) {
-            if fetch(:pyenv_use_configure, true)
-              begin
-                script_file = capture("mktemp /tmp/pyenv.XXXXXXXXXX").strip
-                top.put(pyenv_configure_script, script_file)
-                [ pyenv_configure_files ].flatten.each do |file|
-                  update_config(script_file, file)
-                end
-              ensure
-                run("rm -f #{script_file.dump}") rescue nil
+            begin
+              script_file = capture("mktemp /tmp/pyenv.XXXXXXXXXX").strip
+              top.put(pyenv_configure_script, script_file)
+              [ pyenv_configure_files ].flatten.each do |file|
+                _update_config(script_file, file)
               end
+            ensure
+              run("rm -f #{script_file.dump}") rescue nil
             end
           }
 
@@ -220,49 +245,92 @@ module Capistrano
             unless pyenv_python_dependencies.empty?
               case pyenv_platform
               when /(debian|ubuntu)/i
-                begin
-                  run("dpkg-query -s #{pyenv_python_dependencies.join(' ')} > /dev/null")
-                rescue
-                  run("#{sudo} apt-get install -q -y #{pyenv_python_dependencies.join(' ')}")
-                end
+                run("#{sudo} apt-get install -q -y #{pyenv_python_dependencies.map { |x| x.dump }.join(" ")}")
               when /redhat/i
-                begin
-                  run("rpm -qi #{pyenv_python_dependencies.join(' ')} > /dev/null")
-                rescue
-                  run("#{sudo} yum install -q -y #{pyenv_python_dependencies.join(' ')}")
-                end
-              else
-                # nop
+                run("#{sudo} yum install -q -y #{pyenv_python_dependencies.map { |x| x.dump }.join(" ")}")
               end
             end
           }
 
+          _cset(:pyenv_python_versions) { pyenv.versions }
           desc("Build python within pyenv.")
           task(:build, :except => { :no_release => true }) {
             python = fetch(:pyenv_python_cmd, 'python')
             if pyenv_use_virtualenv
-              if pyenv_virtualenv_python_version != 'system'
-                # build python for virtualenv
-                run("#{pyenv_bin} whence #{python} | fgrep -q #{pyenv_virtualenv_python_version} || " +
-                    "#{pyenv_bin} install #{pyenv_virtualenv_python_version}")
+              if pyenv_virtualenv_python_version != "system" and not pyenv_python_versions.include?(pyenv_virtualenv_python_version)
+                pyenv.install(pyenv_virtualenv_python_version)
               end
-              if pyenv_python_version != 'system'
-                # create virtualenv
-                run("#{pyenv_bin} whence #{python} | fgrep -q #{pyenv_python_version} || " +
-                    "#{pyenv_bin} virtualenv #{pyenv_virtualenv_options.join(' ')} #{pyenv_virtualenv_python_version} #{pyenv_python_version}")
+              if pyenv_python_version != "system" and not pyenv_python_versions.include?(pyenv_python_version)
+                pyenv.virtualenv(pyenv_virtualenv_python_version, pyenv_python_version)
               end
             else
-              if pyenv_python_version != 'system'
-                run("#{pyenv_bin} whence #{python} | fgrep -q #{pyenv_python_version} || #{pyenv_bin} install #{pyenv_python_version}")
+              if pyenv_python_version != "system" and not pyenv_python_versions.include?(pyenv_python_version)
+                pyenv.install(pyenv_python_version)
               end
             end
-
-            run("#{pyenv_cmd} exec #{python} --version && #{pyenv_cmd} global #{pyenv_python_version}")
+            pyenv.exec("#{python} --version") # chck if python is executable
+            pyenv.global(pyenv_python_version)
           }
 
           # call `pyenv rehash` to update shims.
-          def rehash()
-            run("#{pyenv_cmd} rehash")
+          def rehash(options={})
+            run("#{pyenv_cmd} rehash", options)
+          end
+
+          def global(version, options={})
+            run("#{pyenv_cmd} global #{version.dump}", options)
+          end
+
+          def local(version, options={})
+            path = options.delete(:path)
+            if path
+              run("cd #{path.dump} && #{pyenv_cmd} local #{version.dump}", options)
+            else
+              run("#{pyenv_cmd} local #{version.dump}", options)
+            end
+          end
+
+          def which(command, options={})
+            path = options.delete(:path)
+            if path
+              capture("cd #{path.dump} && #{pyenv_cmd} which #{command.dump}", options).strip
+            else
+              capture("#{pyenv_cmd} which #{command.dump}", options).strip
+            end
+          end
+
+          def exec(command, options={})
+            # users of pyenv.exec must sanitize their command line.
+            path = options.delete(:path)
+            if path
+              run("cd #{path.dump} && #{pyenv_cmd} exec #{command}", options)
+            else
+              run("#{pyenv_cmd} exec #{command}", options)
+            end
+          end
+
+          def versions(options={})
+            capture("#{pyenv_cmd} versions --bare").split(/(?:\r?\n)+/)
+          end
+
+          _cset(:pyenv_install_python_threads) {
+            capture("cat /proc/cpuinfo | cut -f1 | grep processor | wc -l").to_i rescue 1
+          }
+          # create build processes as many as processor count
+          _cset(:pyenv_make_options) { "-j #{pyenv_install_python_threads}" }
+          def install(version, options={})
+            execute = []
+            execute << "export MAKE_OPTS=#{pyenv_make_options.dump}" if pyenv_make_options
+            execute << "#{pyenv_cmd} install #{version.dump}"
+            run(execute.join(" && "), options)
+          end
+
+          def uninstall(version, options={})
+            run("#{pyenv_cmd} uninstall -f #{version.dump}")
+          end
+
+          def virtualenv(version, venv, options={})
+            run("#{pyenv_cmd} virtualenv #{pyenv_virtualenv_options.join(" ")} #{version.dump} #{venv.dump}")
           end
         }
       }
