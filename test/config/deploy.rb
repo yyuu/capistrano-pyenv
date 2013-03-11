@@ -40,6 +40,20 @@ namespace(:test_all) {
   task(:test_pip_is_installed) {
     run("pyenv exec pip --version")
   }
+
+  task(:test_virtualenv) {
+    python_version = pyenv_python_version
+    set(:pyenv_use_virtualenv, true)
+    set(:pyenv_python_version, "venv")
+    set(:pyenv_virtualenv_python_version, python_version)
+
+    find_and_execute_task("pyenv:setup")
+    run("pyenv exec python --version")
+
+    set(:pyenv_use_virtualenv, false)
+    set(:pyenv_python_version, python_version)
+    set(:pyenv_virtualenv_python_version, nil)
+  }
 }
 
 # vim:set ft=ruby sw=2 ts=2 :

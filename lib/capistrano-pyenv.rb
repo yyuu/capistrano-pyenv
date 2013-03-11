@@ -255,7 +255,8 @@ module Capistrano
           _cset(:pyenv_python_versions) { pyenv.versions }
           desc("Build python within pyenv.")
           task(:build, :except => { :no_release => true }) {
-            python = fetch(:pyenv_python_cmd, 'python')
+            reset!(:pyenv_python_versions)
+            python = fetch(:pyenv_python_cmd, "python")
             if pyenv_use_virtualenv
               if pyenv_virtualenv_python_version != "system" and not pyenv_python_versions.include?(pyenv_virtualenv_python_version)
                 pyenv.install(pyenv_virtualenv_python_version)
