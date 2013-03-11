@@ -104,7 +104,7 @@ module Capistrano
           end
 
           _cset(:pyenv_setup_default_environment) {
-            if variables.key?(:pyenv_define_default_environment)
+            if exists?(:pyenv_define_default_environment)
               logger.info(":pyenv_define_default_environment has been deprecated. use :pyenv_setup_default_environment instead.")
               fetch(:pyenv_define_default_environment, true)
             else
@@ -196,7 +196,7 @@ module Capistrano
           end
 
           _cset(:pyenv_setup_shell) {
-            if variables.key?(:pyenv_use_configure)
+            if exists?(:pyenv_use_configure)
               logger.info(":pyenv_use_configure has been deprecated. please use :pyenv_setup_shell instead.")
               fetch(:pyenv_use_configure, true)
             else
@@ -311,6 +311,10 @@ module Capistrano
 
           def versions(options={})
             capture("#{pyenv_cmd} versions --bare", options).split(/(?:\r?\n)+/)
+          end
+
+          def available_versions(options={})
+            capture("#{pyenv_cmd} install --complete", options).split(/(?:\r?\n)+/)
           end
 
           _cset(:pyenv_install_python_threads) {
