@@ -17,8 +17,22 @@ module Capistrano
           _cset(:pyenv_bin) {
             File.join(pyenv_bin_path, "pyenv")
           }
-          _cset(:pyenv_cmd) {
-            "env PYENV_ROOT=#{pyenv_path.dump} PYENV_VERSION=#{pyenv_python_version.dump} #{pyenv_bin}"
+          def pyenv_command(options={})
+            environment = pyenv_environment.merge(options.fetch(:env, {}))
+            environment["PYENV_VERSION"] = options[:version] if options.key?(:version)
+            if environment.empty?
+              pyenv_bin
+            else
+              env = (["env"] + environment.map { |k, v| "#{k}=#{v.dump}" }).join(" ")
+              "#{env} #{pyenv_bin}"
+            end
+          end
+          _cset(:pyenv_cmd) { pyenv_command(:version => pyenv_python_version) } # this declares PYENV_VERSION.
+          _cset(:pyenv_environment) {
+            {
+              "PYENV_ROOT" => pyenv_path,
+              "PATH" => [ pyenv_shims_path, pyenv_bin_path, "$PATH" ].join(":"),
+            }
           }
           _cset(:pyenv_repository, 'git://github.com/yyuu/pyenv.git')
           _cset(:pyenv_branch, 'master')
@@ -97,10 +111,7 @@ module Capistrano
           }
 
           def _setup_default_environment
-            env = fetch(:default_environment, {}).dup
-            env["PYENV_ROOT"] = pyenv_path
-            env["PATH"] = [ pyenv_shims_path, pyenv_bin_path, env.fetch("PATH", "$PATH") ].join(":")
-            set(:default_environment, env)
+            set(:default_environment, default_environment.merge(pyenv_environment))
           end
 
           _cset(:pyenv_setup_default_environment) {
@@ -111,7 +122,7 @@ module Capistrano
               true
             end
           }
-          # workaround for `multistage` of capistrano-ext.
+          # workaround for loading `capistrano-rbenv` later than `capistrano/ext/multistage`.
           # https://github.com/yyuu/capistrano-rbenv/pull/5
           if top.namespaces.key?(:multistage)
             after "multistage:ensure" do
@@ -119,7 +130,15 @@ module Capistrano
             end
           else
             on :start do
-              _setup_default_environment if pyenv_setup_default_environment
+              if top.namespaces.key?(:multistage)
+                # workaround for loading `capistrano-rbenv` earlier than `capistrano/ext/multistage`.
+                # https://github.com/yyuu/capistrano-rbenv/issues/7
+                after "multistage:ensure" do
+                  _setup_default_environment if pyenv_setup_default_environment
+                end
+              else
+                _setup_default_environment if pyenv_setup_default_environment
+              end
             end
           end
 
@@ -275,47 +294,46 @@ module Capistrano
 
           # call `pyenv rehash` to update shims.
           def rehash(options={})
-            run("#{pyenv_cmd} rehash", options)
+            invoke_command("#{pyenv_command} rehash", options)
           end
 
           def global(version, options={})
-            run("#{pyenv_cmd} global #{version.dump}", options)
+            invoke_command("#{pyenv_command} global #{version.dump}", options)
           end
 
           def local(version, options={})
             path = options.delete(:path)
-            if path
-              run("cd #{path.dump} && #{pyenv_cmd} local #{version.dump}", options)
-            else
-              run("#{pyenv_cmd} local #{version.dump}", options)
-            end
+            execute = []
+            execute << "cd #{path.dump}" if path
+            execute << "#{pyenv_command} local #{version.dump}"
+            invoke_command(execute.join(" && "), options)
           end
 
           def which(command, options={})
             path = options.delete(:path)
-            if path
-              capture("cd #{path.dump} && #{pyenv_cmd} which #{command.dump}", options).strip
-            else
-              capture("#{pyenv_cmd} which #{command.dump}", options).strip
-            end
+            version = ( options.delete(:version) || pyenv_python_version )
+            execute = []
+            execute << "cd #{path.dump}" if path
+            execute << "#{pyenv_command(:version => version)} which #{command.dump}"
+            capture(execute.join(" && "), options).strip
           end
 
           def exec(command, options={})
             # users of pyenv.exec must sanitize their command line.
             path = options.delete(:path)
-            if path
-              run("cd #{path.dump} && #{pyenv_cmd} exec #{command}", options)
-            else
-              run("#{pyenv_cmd} exec #{command}", options)
-            end
+            version = ( options.delete(:version) || pyenv_python_version )
+            execute = []
+            execute << "cd #{path.dump}" if path
+            execute << "#{pyenv_command(:version => version)} exec #{command}"
+            invoke_command(execute.join(" && "), options)
           end
 
           def versions(options={})
-            capture("#{pyenv_cmd} versions --bare", options).split(/(?:\r?\n)+/)
+            capture("#{pyenv_command} versions --bare", options).split(/(?:\r?\n)+/)
           end
 
           def available_versions(options={})
-            capture("#{pyenv_cmd} install --complete", options).split(/(?:\r?\n)+/)
+            capture("#{pyenv_command} install --complete", options).split(/(?:\r?\n)+/)
           end
 
           _cset(:pyenv_install_python_threads) {
@@ -325,15 +343,14 @@ module Capistrano
           _cset(:pyenv_make_options) { "-j #{pyenv_install_python_threads}" }
           _cset(:pyenv_configure_options, nil)
           def install(version, options={})
-            execute = []
-            execute << "export CONFIGURE_OPTS=#{pyenv_configure_options.dump}" if pyenv_configure_options
-            execute << "export MAKE_OPTS=#{pyenv_make_options.dump}" if pyenv_make_options
-            execute << "#{pyenv_cmd} install #{version.dump}"
-            run(execute.join(" && "), options)
+            environment = {}
+            environment["CONFIGURE_OPTS"] = pyenv_configure_options.to_s if pyenv_configure_options
+            environment["MAKE_OPTS"] = pyenv_make_options.to_s if pyenv_make_options
+            invoke_command("#{pyenv_command(:env => environment)} install #{version.dump}", options)
           end
 
           def uninstall(version, options={})
-            run("#{pyenv_cmd} uninstall -f #{version.dump}", options)
+            invoke_command("#{pyenv_command} uninstall -f #{version.dump}", options)
           end
 
           def virtualenv(version, venv, options={})
