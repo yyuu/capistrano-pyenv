@@ -66,12 +66,24 @@ module Capistrano
 
           desc("Setup pyenv.")
           task(:setup, :except => { :no_release => true }) {
+            #
+            # skip installation if the requested version has been installed.
+            #
+            begin
+              installed = pyenv_python_versions.include?(pyenv_python_version)
+            rescue
+              installed = false
+            end
+            _setup unless installed
+            configure if pyenv_setup_shell
+          }
+          after "deploy:setup", "pyenv:setup"
+
+          task(:_setup, :except => { :no_release => true }) {
             dependencies if pyenv_install_dependencies
             update
-            configure if pyenv_setup_shell
             build
           }
-          after 'deploy:setup', 'pyenv:setup'
 
           def _update_repository(destination, options={})
             configuration = Capistrano::Configuration.new()
