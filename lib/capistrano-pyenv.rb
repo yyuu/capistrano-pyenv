@@ -270,7 +270,7 @@ module Capistrano
               end
             end
             pyenv.exec("#{python} --version") # chck if python is executable
-            pyenv.global(pyenv_python_version)
+            pyenv.global(pyenv_python_version) if fetch(:pyenv_setup_global_version, true)
           }
 
           # call `pyenv rehash` to update shims.
