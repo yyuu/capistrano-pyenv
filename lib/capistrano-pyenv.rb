@@ -323,8 +323,10 @@ module Capistrano
           }
           # create build processes as many as processor count
           _cset(:pyenv_make_options) { "-j #{pyenv_install_python_threads}" }
+          _cset(:pyenv_configure_options, nil)
           def install(version, options={})
             execute = []
+            execute << "export CONFIGURE_OPTS=#{pyenv_configure_options.dump}" if pyenv_configure_options
             execute << "export MAKE_OPTS=#{pyenv_make_options.dump}" if pyenv_make_options
             execute << "#{pyenv_cmd} install #{version.dump}"
             run(execute.join(" && "), options)
