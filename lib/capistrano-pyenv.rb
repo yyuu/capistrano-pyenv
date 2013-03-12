@@ -18,7 +18,7 @@ module Capistrano
             File.join(pyenv_bin_path, "pyenv")
           }
           _cset(:pyenv_cmd) {
-            "env PYENV_VERSION=#{pyenv_python_version.dump} #{pyenv_bin}"
+            "env PYENV_ROOT=#{pyenv_path.dump} PYENV_VERSION=#{pyenv_python_version.dump} #{pyenv_bin}"
           }
           _cset(:pyenv_repository, 'git://github.com/yyuu/pyenv.git')
           _cset(:pyenv_branch, 'master')
