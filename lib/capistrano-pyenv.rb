@@ -28,12 +28,10 @@ module Capistrano
             end
           end
           _cset(:pyenv_cmd) { pyenv_command(:version => pyenv_python_version) } # this declares PYENV_VERSION.
-          _cset(:pyenv_environment) {
-            {
-              "PYENV_ROOT" => pyenv_path,
-              "PATH" => [ pyenv_shims_path, pyenv_bin_path, "$PATH" ].join(":"),
-            }
-          }
+          _cset(:pyenv_environment) {{
+            "PYENV_ROOT" => pyenv_path,
+            "PATH" => [ pyenv_shims_path, pyenv_bin_path, "$PATH" ].join(":"),
+          }}
           _cset(:pyenv_repository, 'git://github.com/yyuu/pyenv.git')
           _cset(:pyenv_branch, 'master')
 
@@ -123,10 +121,6 @@ module Capistrano
             plugins.update
           }
 
-          def _setup_default_environment
-            set(:default_environment, default_environment.merge(pyenv_environment))
-          end
-
           _cset(:pyenv_setup_default_environment) {
             if exists?(:pyenv_define_default_environment)
               logger.info(":pyenv_define_default_environment has been deprecated. use :pyenv_setup_default_environment instead.")
@@ -138,22 +132,24 @@ module Capistrano
           # workaround for loading `capistrano-rbenv` later than `capistrano/ext/multistage`.
           # https://github.com/yyuu/capistrano-rbenv/pull/5
           if top.namespaces.key?(:multistage)
-            after "multistage:ensure" do
-              _setup_default_environment if pyenv_setup_default_environment
-            end
+            after "multistage:ensure", "pyenv:setup_default_environmnt"
           else
             on :start do
               if top.namespaces.key?(:multistage)
                 # workaround for loading `capistrano-rbenv` earlier than `capistrano/ext/multistage`.
                 # https://github.com/yyuu/capistrano-rbenv/issues/7
-                after "multistage:ensure" do
-                  _setup_default_environment if pyenv_setup_default_environment
-                end
+                after "multistage:ensure", "pyenv:setup_default_environment"
               else
-                _setup_default_environment if pyenv_setup_default_environment
+                setup_default_environment
               end
             end
           end
+
+          task(:setup_default_environment, :except => { :no_release => true }) {
+            if pyenv_setup_default_environment
+              set(:default_environment, default_environment.merge(pyenv_environment))
+            end
+          }
 
           desc("Purge pyenv.")
           task(:purge, :except => { :no_release => true }) {
