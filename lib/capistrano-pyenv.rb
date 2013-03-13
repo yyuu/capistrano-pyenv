@@ -76,6 +76,7 @@ module Capistrano
             end
             _setup unless installed
             configure if pyenv_setup_shell
+            pyenv.global(pyenv_python_version) if fetch(:pyenv_setup_global_version, true)
           }
           after "deploy:setup", "pyenv:setup"
 
@@ -301,7 +302,6 @@ module Capistrano
               end
             end
             pyenv.exec("#{python} --version") # chck if python is executable
-            pyenv.global(pyenv_python_version) if fetch(:pyenv_setup_global_version, true)
           }
 
           # call `pyenv rehash` to update shims.
