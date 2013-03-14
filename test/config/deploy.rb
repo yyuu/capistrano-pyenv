@@ -57,10 +57,10 @@ namespace(:test_default) {
     pyenv.exec("python -c 'import os;assert os.getcwd()==\"/\"'", :path => "/")
   }
 
-# task(:test_pyenv_exec_python_via_sudo_with_path) {
-#   # capistrano does not provide safer way to invoke multiple commands via sudo.
-#   pyenv.exec("python -c 'import os;assert os.getcwd()==\"/\" and os.getuid()==0'", :path => "/", :via => :sudo )
-# }
+  task(:test_pyenv_exec_python_via_sudo_with_path) {
+    # capistrano does not provide safer way to invoke multiple commands via sudo.
+    pyenv.exec("python -c 'import os;assert os.getcwd()==\"/\" and os.getuid()==0'", :path => "/", :via => :sudo )
+  }
 
 ## via sudo
   task(:test_pyenv_exec_via_sudo) {

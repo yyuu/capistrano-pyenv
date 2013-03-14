@@ -67,6 +67,7 @@ module Capistrano
             #
             # skip installation if the requested version has been installed.
             #
+            reset!(:pyenv_python_versions)
             begin
               installed = pyenv_python_versions.include?(pyenv_python_version)
             rescue
@@ -283,7 +284,7 @@ module Capistrano
           _cset(:pyenv_python_versions) { pyenv.versions }
           desc("Build python within pyenv.")
           task(:build, :except => { :no_release => true }) {
-            reset!(:pyenv_python_versions)
+#           reset!(:pyenv_python_versions)
             python = fetch(:pyenv_python_cmd, "python")
             if pyenv_use_virtualenv
               if pyenv_virtualenv_python_version != "system" and not pyenv_python_versions.include?(pyenv_virtualenv_python_version)
@@ -309,31 +310,35 @@ module Capistrano
             invoke_command("#{pyenv_command} global #{version.dump}", options)
           end
 
-          def local(version, options={})
+          def invoke_command_with_path(cmdline, options={})
             path = options.delete(:path)
-            execute = []
-            execute << "cd #{path.dump}" if path
-            execute << "#{pyenv_command} local #{version.dump}"
-            invoke_command(execute.join(" && "), options)
+            if path
+              chdir = "cd #{path.dump}"
+              via = options.delete(:via)
+              # as of Capistrano 2.14.2, `sudo()` cannot handle multiple command correctly.
+              if via == :sudo
+                invoke_command("#{chdir} && #{sudo} #{cmdline}", options)
+              else
+                invoke_command("#{chdir} && #{cmdline}", options.merge(:via => via))
+              end
+            else
+              invoke_command(cmdline, options)
+            end
+          end
+
+          def local(version, options={})
+            invoke_command_with_path("#{pyenv_command} local #{version.dump}", options)
           end
 
           def which(command, options={})
-            path = options.delete(:path)
             version = ( options.delete(:version) || pyenv_python_version )
-            execute = []
-            execute << "cd #{path.dump}" if path
-            execute << "#{pyenv_command(:version => version)} which #{command.dump}"
-            capture(execute.join(" && "), options).strip
+            invoke_command_with_path("#{pyenv_command(:version => version)} which #{command.dump}", options)
           end
 
           def exec(command, options={})
             # users of pyenv.exec must sanitize their command line.
-            path = options.delete(:path)
             version = ( options.delete(:version) || pyenv_python_version )
-            execute = []
-            execute << "cd #{path.dump}" if path
-            execute << "#{pyenv_command(:version => version)} exec #{command}"
-            invoke_command(execute.join(" && "), options)
+            invoke_command_with_path("#{pyenv_command(:version => version)} exec #{command}", options)
           end
 
           def versions(options={})
