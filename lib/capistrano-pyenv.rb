@@ -18,7 +18,7 @@ module Capistrano
             File.join(pyenv_bin_path, "pyenv")
           }
           def pyenv_command(options={})
-            environment = pyenv_environment.merge(options.fetch(:env, {}))
+            environment = _merge_environment(pyenv_environment, options.fetch(:env, {}))
             environment["PYENV_VERSION"] = options[:version] if options.key?(:version)
             if environment.empty?
               pyenv_bin
@@ -150,7 +150,7 @@ module Capistrano
           def _merge_environment(x, y)
             x.merge(y) { |key, x_val, y_val|
               if pyenv_environment_join_keys.key?(key)
-                [ y_val, x_val ].join(":")
+                ( y_val.split(":") + x_val.split(":") ).join(":")
               else
                 y_val
               end
