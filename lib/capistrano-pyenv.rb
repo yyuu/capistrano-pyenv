@@ -1,5 +1,6 @@
 require "capistrano-pyenv/version"
 require "capistrano/configuration"
+require "capistrano/configuration/resources/platform_resources"
 require "capistrano/recipes/deploy/scm"
 
 module Capistrano
@@ -18,7 +19,7 @@ module Capistrano
             File.join(pyenv_bin_path, "pyenv")
           }
           def pyenv_command(options={})
-            environment = pyenv_environment.merge(options.fetch(:env, {}))
+            environment = _merge_environment(pyenv_environment, options.fetch(:env, {}))
             environment["PYENV_VERSION"] = options[:version] if options.key?(:version)
             if environment.empty?
               pyenv_bin
@@ -28,12 +29,10 @@ module Capistrano
             end
           end
           _cset(:pyenv_cmd) { pyenv_command(:version => pyenv_python_version) } # this declares PYENV_VERSION.
-          _cset(:pyenv_environment) {
-            {
-              "PYENV_ROOT" => pyenv_path,
-              "PATH" => [ pyenv_shims_path, pyenv_bin_path, "$PATH" ].join(":"),
-            }
-          }
+          _cset(:pyenv_environment) {{
+            "PYENV_ROOT" => pyenv_path,
+            "PATH" => [ pyenv_shims_path, pyenv_bin_path, "$PATH" ].join(":"),
+          }}
           _cset(:pyenv_repository, 'git://github.com/yyuu/pyenv.git')
           _cset(:pyenv_branch, 'master')
 
@@ -54,13 +53,7 @@ module Capistrano
             if pyenv_python_dependencies.empty?
               false
             else
-              status = case pyenv_platform
-                when /(debian|ubuntu)/i
-                  capture("dpkg-query -s #{pyenv_python_dependencies.map { |x| x.dump }.join(" ")} 1>/dev/null 2>&1 || echo required")
-                when /redhat/i
-                  capture("rpm -qi #{pyenv_python_dependencies.map { |x| x.dump }.join(" ")} 1>/dev/null 2>&1 || echo required")
-                end
-              true and (/required/i =~ status)
+              not(platform.packages.installed?(pyenv_python_dependencies))
             end
           }
 
@@ -69,6 +62,7 @@ module Capistrano
             #
             # skip installation if the requested version has been installed.
             #
+            reset!(:pyenv_python_versions)
             begin
               installed = pyenv_python_versions.include?(pyenv_python_version)
             rescue
@@ -123,10 +117,6 @@ module Capistrano
             plugins.update
           }
 
-          def _setup_default_environment
-            set(:default_environment, default_environment.merge(pyenv_environment))
-          end
-
           _cset(:pyenv_setup_default_environment) {
             if exists?(:pyenv_define_default_environment)
               logger.info(":pyenv_define_default_environment has been deprecated. use :pyenv_setup_default_environment instead.")
@@ -138,22 +128,35 @@ module Capistrano
           # workaround for loading `capistrano-rbenv` later than `capistrano/ext/multistage`.
           # https://github.com/yyuu/capistrano-rbenv/pull/5
           if top.namespaces.key?(:multistage)
-            after "multistage:ensure" do
-              _setup_default_environment if pyenv_setup_default_environment
-            end
+            after "multistage:ensure", "pyenv:setup_default_environmnt"
           else
             on :start do
               if top.namespaces.key?(:multistage)
                 # workaround for loading `capistrano-rbenv` earlier than `capistrano/ext/multistage`.
                 # https://github.com/yyuu/capistrano-rbenv/issues/7
-                after "multistage:ensure" do
-                  _setup_default_environment if pyenv_setup_default_environment
-                end
+                after "multistage:ensure", "pyenv:setup_default_environment"
               else
-                _setup_default_environment if pyenv_setup_default_environment
+                setup_default_environment
               end
             end
           end
+
+          _cset(:pyenv_environment_join_keys, %w(DYLD_LIBRARY_PATH LD_LIBRARY_PATH MANPATH PATH))
+          def _merge_environment(x, y)
+            x.merge(y) { |key, x_val, y_val|
+              if pyenv_environment_join_keys.key?(key)
+                ( y_val.split(":") + x_val.split(":") ).join(":")
+              else
+                y_val
+              end
+            }
+          end
+
+          task(:setup_default_environment, :except => { :no_release => true }) {
+            if pyenv_setup_default_environment
+              set(:default_environment, _merge_environment(default_environment, pyenv_environment))
+            end
+          }
 
           desc("Purge pyenv.")
           task(:purge, :except => { :no_release => true }) {
@@ -248,46 +251,25 @@ module Capistrano
             end
           }
 
-          _cset(:pyenv_platform) {
-            capture((<<-EOS).gsub(/\s+/, ' ')).strip
-              if test -f /etc/debian_version; then
-                if test -f /etc/lsb-release && grep -i -q DISTRIB_ID=Ubuntu /etc/lsb-release; then
-                  echo ubuntu;
-                else
-                  echo debian;
-                fi;
-              elif test -f /etc/redhat-release; then
-                echo redhat;
-              else
-                echo unknown;
-              fi;
-            EOS
-          }
+          _cset(:pyenv_platform) { fetch(:platform_identifier) }
           _cset(:pyenv_python_dependencies) {
-            case pyenv_platform
-            when /(debian|ubuntu)/i
+            case pyenv_platform.to_sym
+            when :debian, :ubuntu
               %w(git-core build-essential libreadline6-dev zlib1g-dev libssl-dev)
-            when /redhat/i
+            when :redhat, :centos
               %w(git-core autoconf glibc-devel patch readline readline-devel zlib zlib-devel openssl)
             else
               []
             end
           }
           task(:dependencies, :except => { :no_release => true }) {
-            unless pyenv_python_dependencies.empty?
-              case pyenv_platform
-              when /(debian|ubuntu)/i
-                run("#{sudo} apt-get install -q -y #{pyenv_python_dependencies.map { |x| x.dump }.join(" ")}")
-              when /redhat/i
-                run("#{sudo} yum install -q -y #{pyenv_python_dependencies.map { |x| x.dump }.join(" ")}")
-              end
-            end
+            platform.packages.install(pyenv_python_dependencies)
           }
 
           _cset(:pyenv_python_versions) { pyenv.versions }
           desc("Build python within pyenv.")
           task(:build, :except => { :no_release => true }) {
-            reset!(:pyenv_python_versions)
+#           reset!(:pyenv_python_versions)
             python = fetch(:pyenv_python_cmd, "python")
             if pyenv_use_virtualenv
               if pyenv_virtualenv_python_version != "system" and not pyenv_python_versions.include?(pyenv_virtualenv_python_version)
@@ -313,31 +295,35 @@ module Capistrano
             invoke_command("#{pyenv_command} global #{version.dump}", options)
           end
 
-          def local(version, options={})
+          def invoke_command_with_path(cmdline, options={})
             path = options.delete(:path)
-            execute = []
-            execute << "cd #{path.dump}" if path
-            execute << "#{pyenv_command} local #{version.dump}"
-            invoke_command(execute.join(" && "), options)
+            if path
+              chdir = "cd #{path.dump}"
+              via = options.delete(:via)
+              # as of Capistrano 2.14.2, `sudo()` cannot handle multiple command correctly.
+              if via == :sudo
+                invoke_command("#{chdir} && #{sudo} #{cmdline}", options)
+              else
+                invoke_command("#{chdir} && #{cmdline}", options.merge(:via => via))
+              end
+            else
+              invoke_command(cmdline, options)
+            end
+          end
+
+          def local(version, options={})
+            invoke_command_with_path("#{pyenv_command} local #{version.dump}", options)
           end
 
           def which(command, options={})
-            path = options.delete(:path)
             version = ( options.delete(:version) || pyenv_python_version )
-            execute = []
-            execute << "cd #{path.dump}" if path
-            execute << "#{pyenv_command(:version => version)} which #{command.dump}"
-            capture(execute.join(" && "), options).strip
+            invoke_command_with_path("#{pyenv_command(:version => version)} which #{command.dump}", options)
           end
 
           def exec(command, options={})
             # users of pyenv.exec must sanitize their command line.
-            path = options.delete(:path)
             version = ( options.delete(:version) || pyenv_python_version )
-            execute = []
-            execute << "cd #{path.dump}" if path
-            execute << "#{pyenv_command(:version => version)} exec #{command}"
-            invoke_command(execute.join(" && "), options)
+            invoke_command_with_path("#{pyenv_command(:version => version)} exec #{command}", options)
           end
 
           def versions(options={})
