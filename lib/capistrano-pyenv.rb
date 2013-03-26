@@ -1,5 +1,6 @@
 require "capistrano-pyenv/version"
 require "capistrano/configuration"
+require "capistrano/configuration/resources/platform_resources"
 require "capistrano/recipes/deploy/scm"
 
 module Capistrano
@@ -52,13 +53,7 @@ module Capistrano
             if pyenv_python_dependencies.empty?
               false
             else
-              status = case pyenv_platform
-                when /(debian|ubuntu)/i
-                  capture("dpkg-query -s #{pyenv_python_dependencies.map { |x| x.dump }.join(" ")} 1>/dev/null 2>&1 || echo required")
-                when /redhat/i
-                  capture("rpm -qi #{pyenv_python_dependencies.map { |x| x.dump }.join(" ")} 1>/dev/null 2>&1 || echo required")
-                end
-              true and (/required/i =~ status)
+              not(platform.packages.installed?(pyenv_python_dependencies))
             end
           }
 
@@ -256,40 +251,19 @@ module Capistrano
             end
           }
 
-          _cset(:pyenv_platform) {
-            capture((<<-EOS).gsub(/\s+/, ' ')).strip
-              if test -f /etc/debian_version; then
-                if test -f /etc/lsb-release && grep -i -q DISTRIB_ID=Ubuntu /etc/lsb-release; then
-                  echo ubuntu;
-                else
-                  echo debian;
-                fi;
-              elif test -f /etc/redhat-release; then
-                echo redhat;
-              else
-                echo unknown;
-              fi;
-            EOS
-          }
+          _cset(:pyenv_platform) { fetch(:platform_identifier) }
           _cset(:pyenv_python_dependencies) {
-            case pyenv_platform
-            when /(debian|ubuntu)/i
+            case pyenv_platform.to_sym
+            when :debian, :ubuntu
               %w(git-core build-essential libreadline6-dev zlib1g-dev libssl-dev)
-            when /redhat/i
+            when :redhat, :centos
               %w(git-core autoconf glibc-devel patch readline readline-devel zlib zlib-devel openssl)
             else
               []
             end
           }
           task(:dependencies, :except => { :no_release => true }) {
-            unless pyenv_python_dependencies.empty?
-              case pyenv_platform
-              when /(debian|ubuntu)/i
-                run("#{sudo} apt-get install -q -y #{pyenv_python_dependencies.map { |x| x.dump }.join(" ")}")
-              when /redhat/i
-                run("#{sudo} yum install -q -y #{pyenv_python_dependencies.map { |x| x.dump }.join(" ")}")
-              end
-            end
+            platform.packages.install(pyenv_python_dependencies)
           }
 
           _cset(:pyenv_python_versions) { pyenv.versions }
