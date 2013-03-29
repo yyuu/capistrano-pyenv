@@ -130,7 +130,7 @@ module Capistrano
           if top.namespaces.key?(:multistage)
             after "multistage:ensure", "pyenv:setup_default_environmnt"
           else
-            on :start do
+            on :load do
               if top.namespaces.key?(:multistage)
                 # workaround for loading `capistrano-rbenv` earlier than `capistrano/ext/multistage`.
                 # https://github.com/yyuu/capistrano-rbenv/issues/7
