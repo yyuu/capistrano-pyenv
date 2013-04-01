@@ -144,8 +144,8 @@ module Capistrano
           _cset(:pyenv_environment_join_keys, %w(DYLD_LIBRARY_PATH LD_LIBRARY_PATH MANPATH PATH))
           def _merge_environment(x, y)
             x.merge(y) { |key, x_val, y_val|
-              if pyenv_environment_join_keys.key?(key)
-                ( y_val.split(":") + x_val.split(":") ).join(":")
+              if pyenv_environment_join_keys.include?(key)
+                ( y_val.split(":") + x_val.split(":") ).uniq.join(":")
               else
                 y_val
               end
