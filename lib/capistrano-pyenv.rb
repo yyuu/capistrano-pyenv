@@ -128,9 +128,9 @@ module Capistrano
           # workaround for loading `capistrano-rbenv` later than `capistrano/ext/multistage`.
           # https://github.com/yyuu/capistrano-rbenv/pull/5
           if top.namespaces.key?(:multistage)
-            after "multistage:ensure", "pyenv:setup_default_environmnt"
+            after "multistage:ensure", "pyenv:setup_default_environment"
           else
-            on :start do
+            on :load do
               if top.namespaces.key?(:multistage)
                 # workaround for loading `capistrano-rbenv` earlier than `capistrano/ext/multistage`.
                 # https://github.com/yyuu/capistrano-rbenv/issues/7
@@ -144,8 +144,8 @@ module Capistrano
           _cset(:pyenv_environment_join_keys, %w(DYLD_LIBRARY_PATH LD_LIBRARY_PATH MANPATH PATH))
           def _merge_environment(x, y)
             x.merge(y) { |key, x_val, y_val|
-              if pyenv_environment_join_keys.key?(key)
-                ( y_val.split(":") + x_val.split(":") ).join(":")
+              if pyenv_environment_join_keys.include?(key)
+                ( y_val.split(":") + x_val.split(":") ).uniq.join(":")
               else
                 y_val
               end
