@@ -22,8 +22,11 @@ This recipe will install [pyenv](https://github.com/yyuu/pyenv) during `deploy:s
 
 To setup pyenv for your application, add following in you `config/deploy.rb`.
 
-    # in "config/deploy.rb"
-    require 'capistrano-pyenv'
+```ruby
+# config/deploy.rb
+require "capistrano-pyenv"
+set :pyenv_python_version, "2.7.3"
+```
 
 Following options are available to manage your pyenv.
 
