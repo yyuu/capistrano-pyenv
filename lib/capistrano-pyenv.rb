@@ -10,7 +10,7 @@ module Capistrano
         namespace(:pyenv) {
           _cset(:pyenv_root, "$HOME/.pyenv")
           _cset(:pyenv_path) {
-            # expand to actual path to use this value since pyenv may be executed by users other than `:user`.
+            # expand to actual path since pyenv may be executed by users other than `:user`.
             capture("echo #{pyenv_root.dump}").strip
           }
           _cset(:pyenv_bin_path) { File.join(pyenv_path, "bin") }
