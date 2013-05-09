@@ -25,4 +25,9 @@ v1.0.3 (Yamashita, Yuu)
 
 v1.0.4 (Yamashita, Yuu)
 
-* Fixed support for Amazon Linux. Thanks @tk0miya.
+* Fixed support for Amazon Linux. Thanks [@tk0miya](https://github.com/tk0miya).
+
+v1.0.5 (Yamashita, Yuu)
+
+* Install OpenSSL headers on RedHat. Thanks [@tk0miya](https://github.com/tk0miya).
+* Install bzip2 headers to fix build of `bz2` module.
