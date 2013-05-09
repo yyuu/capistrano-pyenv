@@ -255,9 +255,9 @@ module Capistrano
           _cset(:pyenv_python_dependencies) {
             case pyenv_platform.to_sym
             when :debian, :ubuntu
-              %w(git-core build-essential libreadline6-dev zlib1g-dev libssl-dev)
+              %w(git-core build-essential libreadline6-dev zlib1g-dev libssl-dev libbz2-dev)
             when :redhat, :fedora, :centos, :amazon, :amazonami
-              %w(git-core autoconf gcc-c++ glibc-devel patch readline readline-devel zlib zlib-devel openssl)
+              %w(git-core autoconf gcc-c++ glibc-devel patch readline readline-devel zlib zlib-devel openssl openssl-devel bzip2 bzip2-devel)
             else
               []
             end
