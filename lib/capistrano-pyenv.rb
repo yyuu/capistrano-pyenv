@@ -33,11 +33,11 @@ module Capistrano
             "PYENV_ROOT" => pyenv_path,
             "PATH" => [ pyenv_shims_path, pyenv_bin_path, "$PATH" ].join(":"),
           }}
-          _cset(:pyenv_repository, 'git://github.com/yyuu/pyenv.git')
-          _cset(:pyenv_branch, 'master')
+          _cset(:pyenv_repository, "https://github.com/yyuu/pyenv.git")
+          _cset(:pyenv_branch, "master")
 
           _cset(:pyenv_plugins) {{
-            "pyenv-virtualenv" => { :repository => "git://github.com/yyuu/pyenv-virtualenv.git", :branch => "master" },
+            "pyenv-virtualenv" => { :repository => "https://github.com/yyuu/pyenv-virtualenv.git", :branch => "master" },
           }}
           _cset(:pyenv_plugins_options, {}) # for backward compatibility. plugin options can be configured from :pyenv_plugins.
           _cset(:pyenv_plugins_path) {
