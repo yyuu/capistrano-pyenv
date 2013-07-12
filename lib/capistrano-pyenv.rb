@@ -263,7 +263,13 @@ module Capistrano
             end
           }
           task(:dependencies, :except => { :no_release => true }) {
-            platform.packages.install(pyenv_python_dependencies)
+            begin
+              platform.packages.install(pyenv_python_dependencies)
+            rescue
+              missing_dependencies = pyenv_ruby_dependencies.reject { |dep| platform.packages.installed?(dep) rescue false }
+              abort("Failed to install pyenv dependencies: #{missing_dependencies.join(", ")}\n\n" +
+                    "Please install missing packages from outside of Capistrano, or allow #{user} to invoke commands via sudo(8).")
+            end
           }
 
           _cset(:pyenv_python_versions) { pyenv.versions }
